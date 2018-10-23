@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	//"github.com/davecgh/go-spew/spew"
 )
 
 type FunctionDecs struct {
@@ -23,7 +22,10 @@ type FunctionDecs struct {
 	OriginatingFunctionName string     `json:"OriginatingFunction,omitempty"`
 	Position                string     `json:"Position,omitempty"`
 	Color                   string     `json:"Color,omitempty"`
+	OriginalColor           string     `json:"OriginalColor,omitempty"`
 	Variables               []Variable `json:"Variables,omitempty"`
+	Filename                string     `json:"Filename,omitempty"`
+	Line                    int        `json:"Line,omitempty"`
 }
 
 type Nodes struct {
@@ -34,7 +36,10 @@ type Nodes struct {
 	Position                string     `json:"Position,omitempty"`
 	Group                   int        `json:"Group,omitempty"`
 	Color                   string     `json:"Color,omitempty"`
+	OriginalColor           string     `json:"OriginalColor,omitempty"`
 	Variables               []Variable `json:"Variables,omitempty"`
+	Filename                string     `json:"Filename,omitempty"`
+	Line                    int        `json:"Line,omitempty"`
 }
 
 type Links struct {
@@ -85,6 +90,8 @@ var variables []Variable
 
 var group int = 1
 
+var fs *token.FileSet
+
 func main() {
 
 	var v visitor
@@ -94,7 +101,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fs := token.NewFileSet()
+	fs = token.NewFileSet()
 
 	astPkgs, err := parser.ParseDir(fs, os.Args[1], func(info os.FileInfo) bool {
 		name := info.Name()
@@ -130,6 +137,8 @@ func main() {
 				Position:                functionDecs[i].Position,
 				OriginatingFunctionName: "",
 				Variables:               functionDecs[i].Variables,
+				Filename:                functionDecs[i].Filename,
+				Line:                    functionDecs[i].Line,
 			}
 
 			nodeOutput = append(nodeOutput, nodes)
@@ -156,7 +165,6 @@ func main() {
 		for j := range nodeOutput {
 			if nodeOutput[j].Name == functionDecs[i].Name {
 				nodeOutput[j].Variables = functionDecs[i].Variables
-				spew.Dump(nodeOutput[j].Variables)
 			}
 		}
 	}
@@ -165,6 +173,7 @@ func main() {
 	for i := range nodeOutput {
 		if nodeOutput[i].Position == "Root" {
 			nodeOutput[i].Color = "#513B56"
+			nodeOutput[i].OriginalColor = "#513B56"
 		}
 	}
 
@@ -294,6 +303,9 @@ func main() {
 
 	fmt.Println(output)
 
+	//http.Handle("/", http.FileServer(http.Dir("web/static")))
+	//http.ListenAndServe(":3000", nil)
+
 }
 
 func (v visitor) Visit(n ast.Node) ast.Visitor {
@@ -319,6 +331,8 @@ func (v visitor) Visit(n ast.Node) ast.Visitor {
 			currentFunctionDeclaration = fn.Name.Name
 			currentFunctionDeclarationID = int(fn.Name.NamePos)
 
+			fileInfo := fs.Position(fn.Name.NamePos)
+
 			functionDec := FunctionDecs{
 				ID:                      int(fn.Name.NamePos),
 				Name:                    fn.Name.Name,
@@ -327,6 +341,9 @@ func (v visitor) Visit(n ast.Node) ast.Visitor {
 				OriginatingFunctionName: fn.Name.Name,
 				Position:                "Root",
 				Color:                   "#348AA7",
+				OriginalColor:           "#348AA7",
+				Filename:                fileInfo.Filename,
+				Line:                    fileInfo.Line,
 			}
 
 			functionDecs = append(functionDecs, functionDec)
@@ -348,31 +365,74 @@ func (v visitor) Visit(n ast.Node) ast.Visitor {
 		if ok {
 			functionCall := selector.Sel.Name
 
-			pkg := selector.X.(*ast.Ident)
+			switch selector.X.(type) {
+			case *ast.Ident:
 
-			nodes := Nodes{
-				ID:                      int(selector.Sel.NamePos),
-				Name:                    functionCall,
-				Package:                 pkg.Name,
-				Position:                "Branch",
-				OriginatingFunctionName: currentFunctionDeclaration,
-				Color: "#348AA7",
-			}
+				fileInfo := fs.Position(selector.Sel.NamePos)
 
-			nodeOutput = append(nodeOutput, nodes)
+				pkg := selector.X.(*ast.Ident)
 
-			for i := range functionDecs {
-				if functionDecs[i].Name == functionCall {
-					functionDecs[i].Called = true
+				if ok {
+					nodes := Nodes{
+						ID:                      int(selector.Sel.NamePos),
+						Name:                    functionCall,
+						Package:                 pkg.Name,
+						Position:                "Branch",
+						OriginatingFunctionName: currentFunctionDeclaration,
+						Color:         "#348AA7",
+						OriginalColor: "#348AA7",
+						Filename:      fileInfo.Filename,
+						Line:          fileInfo.Line,
+					}
+
+					nodeOutput = append(nodeOutput, nodes)
+
+					for i := range functionDecs {
+						if functionDecs[i].Name == functionCall {
+							functionDecs[i].Called = true
+						}
+					}
 				}
-			}
+			case *ast.SelectorExpr:
 
+				fileInfo := fs.Position(selector.Sel.NamePos)
+
+				tmp := selector.X.(*ast.SelectorExpr)
+
+				pkg := tmp.X.(*ast.Ident)
+				if ok {
+					nodes := Nodes{
+						ID:                      int(selector.Sel.NamePos),
+						Name:                    functionCall,
+						Package:                 pkg.Name,
+						Position:                "Branch",
+						OriginatingFunctionName: currentFunctionDeclaration,
+						Color:         "#348AA7",
+						OriginalColor: "#348AA7",
+						Filename:      fileInfo.Filename,
+						Line:          fileInfo.Line,
+					}
+
+					nodeOutput = append(nodeOutput, nodes)
+
+					for i := range functionDecs {
+						if functionDecs[i].Name == functionCall {
+							functionDecs[i].Called = true
+						}
+					}
+				}
+			default:
+				spew.Dump(selector.X)
+			}
 		}
 
 		ident, ok := ce.Fun.(*ast.Ident)
 
 		if ok {
+
 			functionCall := ident.Name
+
+			fileInfo := fs.Position(ident.NamePos)
 
 			nodes := Nodes{
 				ID:                      int(ident.NamePos),
@@ -380,7 +440,10 @@ func (v visitor) Visit(n ast.Node) ast.Visitor {
 				Package:                 "This",
 				Position:                "Branch",
 				OriginatingFunctionName: currentFunctionDeclaration,
-				Color: "#348AA7",
+				Color:         "#348AA7",
+				OriginalColor: "#348AA7",
+				Filename:      fileInfo.Filename,
+				Line:          fileInfo.Line,
 			}
 
 			nodeOutput = append(nodeOutput, nodes)

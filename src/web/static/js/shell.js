@@ -19,7 +19,7 @@
                             var model = value.model();
                             var dataCollection = new nx.data.Collection(filterModel(model.getData()));
                   
-                            //this.view('list').set('items', dataCollection);
+                            this.view('list').set('items', dataCollection);
                             this.view('variableTable').set('items', dataCollection);
                             this.title(value.label());
                   
@@ -96,7 +96,7 @@
                       },
                       // 'view' defines the appearance of the tooltip
                       view: {
-                        content: [{
+                        /*content: [{
                            
                             tag: "table",
                             props: {
@@ -157,8 +157,8 @@
                                     
                                   }
                             }]
-                        }]
-                       /* content: [{
+                        }]*/
+                       content: [{
                           name: 'header',
                           props: {
                             'class': 'n-topology-tooltip-header'
@@ -199,7 +199,7 @@
                             }
                           }]
                         }, {
-                            name: 'variablesTable',
+                            name: 'variableTable',
                             props: {
                               "class":""
                             },
@@ -220,7 +220,7 @@
                                 }
                               }
                             }]
-                          }]*/
+                          }]
                         
                       },
                       "methods": {
@@ -419,12 +419,12 @@
                     autoLayout: true,
 
                     showNavigation: true,
-                   			
-					// property name to identify unique nodes
-					identityKey: 'id', // helps to link source and target
-					
-					// if true, two nodes can have more than one link
-					supportMultipleLink: true,
+                        
+          // property name to identify unique nodes
+          identityKey: 'id', // helps to link source and target
+          
+          // if true, two nodes can have more than one link
+          supportMultipleLink: true,
 
                     // creates layout automatically
                     dataProcessor: "force",
@@ -477,10 +477,13 @@
               
                var searchBoxDataToDisplay = [];
 
-               // This is used in order to colour the correct nodes - we will search by node id
-               var searchBoxDataWithID = [];
-              
+                // This is used in order to colour the correct nodes - we will search by node id
+                var searchBoxDataWithID = [];
+
+                var results = []
+
                 var search = new autoComplete({
+
                     selector: '#searchBox',
                     minChars: 1,
                     source: function(term, suggest){
@@ -498,6 +501,13 @@
                     },
                     onSelect: function(e, term, item){
 
+                        // when a new field is searched and selected we first want to reset the original colour of the node
+                        results.forEach (function(element){
+                            
+                            topo.getNode(element.id).color(topo.getNode(element.id)._model._data.OriginalColor)
+                            
+                        });
+        
                         // Split the value that was selected in the search box into the name and the type (function, variable)
                         var selected = item.getAttribute('data-val')
 
@@ -507,16 +517,15 @@
                         
 
                         // Filter to retun just the results
-                        var results = searchBoxDataWithID.filter(
+                        results = searchBoxDataWithID.filter(
                             function selectedType(searchBoxDataWithID) {
                                 return searchBoxDataWithID.Name == selected;
                             })
 
-                            console.log(searchBoxDataWithID)
-                            console.log(results)
+                        
                         results.forEach (function(element){
                             
-                            topo.getNode(element.id).color("purple")
+                            topo.getNode(element.id).color("#ff6363")
                             
                         });
         
@@ -530,19 +539,19 @@
 
                     // Popoulates the autocomplete search box when the topology is generated and also the search box + IDs array which
                     // will be used to highlight the nodes
-                    topologyData.nodes.forEach(function(element) {
+                    topologyData.nodes.forEach(function(nodeElement) {
                         
-                        if (!searchBoxDataToDisplay.includes("Function: " + element.Name )) {
-                            element.Name = element.Name.replace(/['"]+/g ,"")
-                            searchBoxDataToDisplay.push("Function: " + element.Name)
+                        if (!searchBoxDataToDisplay.includes("Function: " + nodeElement.Name )) {
+                            nodeElement.Name = nodeElement.Name.replace(/['"]+/g ,"")
+                            searchBoxDataToDisplay.push("Function: " + nodeElement.Name)
                            
                         }
 
-                        searchBoxDataWithID.push({Type:"Function",Name: element.Name,id: element.id})
+                        searchBoxDataWithID.push({Type:"Function",Name: nodeElement.Name,id: nodeElement.id})
 
-                        if (typeof element.Variables != 'undefined' && element.Variables instanceof Array)
+                        if (typeof nodeElement.Variables != 'undefined' && nodeElement.Variables instanceof Array)
                         {
-                            element.Variables.forEach(function(element) {
+                            nodeElement.Variables.forEach(function(element) {
 
                                 if (typeof element.Names != 'undefined' && element.Names instanceof Array)
                                 {
@@ -554,7 +563,7 @@
                                             {
                                                 searchBoxDataToDisplay.push("Variable Name: " + element.Name)
                                             }
-                                            searchBoxDataWithID.push({Type:"Variable Name",Name: element.Name,id: element.id})
+                                            searchBoxDataWithID.push({Type:"Variable Name",Name: element.Name,variableID: element.id,id:nodeElement.id})
                                         }
                                     });
                                 }
@@ -570,7 +579,7 @@
                                             {
                                                 searchBoxDataToDisplay.push("Variable Value: " + element.Value)
                                             }
-                                            searchBoxDataWithID.push({Type:"Variable Value",Name: element.Value,id: element.id})
+                                            searchBoxDataWithID.push({Type:"Variable Value",Name: element.Value,variableID: element.id,id:nodeElement.id})
                                         }
                                     });
                                 }
@@ -585,7 +594,7 @@
                                             {
                                              searchBoxDataToDisplay.push("Variable Type: " + element.Type)
                                             }
-                                            searchBoxDataWithID.push({Type:"Variable Type",Name: element.Type,id: element.id})
+                                            searchBoxDataWithID.push({Type:"Variable Type",Name: element.Type,variableID: element.id,id:nodeElement.id})
                                         }
                                     });
                                 }
